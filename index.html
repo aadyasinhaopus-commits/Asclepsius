@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Medial Axis Trajectory Lab</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090e18;--panel:#111927;--line:#263448;--muted:#9aacc3;--text:#eaf0fb;--cyan:#60dfdd;--gold:#ffd08a;--orange:#ff977d}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif}
+    header{padding:22px 28px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px}
+    h1{font-size:24px;letter-spacing:-.7px;margin:0}h1 span{color:var(--cyan)}header p{margin:3px 0;color:var(--muted)}
+    .badge{font-size:11px;letter-spacing:1px;border:1px solid #33535e;border-radius:24px;padding:6px 12px;color:var(--cyan);white-space:nowrap}
+    main{display:grid;grid-template-columns:244px minmax(360px,1fr) 256px;gap:18px;max-width:1580px;margin:auto;padding:22px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+    h2{margin:0 0 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.7px}
+    .section+.section{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+    button,select,input{font:inherit;color:var(--text)}button,select,input[type=number]{background:#172335;border:1px solid #34445e;border-radius:7px;padding:8px 10px}
+    button{cursor:pointer;transition:background .15s}button:hover{background:#253951}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+    button.active{border-color:var(--cyan);color:var(--cyan);background:#183b43}button.primary{background:var(--cyan);color:#08252b;border-color:var(--cyan);font-weight:700}
+    button:disabled{opacity:.45;cursor:wait}.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.full{width:100%;margin-top:10px}
+    label{display:block;margin:14px 0 5px;color:#c9d6e8;font-size:12px}label.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    input[type=range]{width:100%;accent-color:var(--cyan)}input[type=number],select{width:100%}
+    input[type=checkbox]{accent-color:var(--cyan)}.hint{font-size:12px;color:var(--muted);margin:10px 0 0}
+    .workspace{min-width:0}.canvas-wrap{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#0c1422}
+    canvas#scene{display:block;width:100%;aspect-ratio:1;touch-action:none}
+    .canvas-label{position:absolute;top:15px;left:17px;pointer-events:none;font-size:10px;letter-spacing:1.8px;color:#8096b3}
+    .legend{display:flex;flex-wrap:wrap;gap:14px;margin:13px 3px;color:var(--muted);font-size:11px}
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+    #status{padding:11px 14px;background:#132537;border:1px solid #294159;border-radius:9px;font-size:12px;min-height:43px}
+    #status.error{background:#381e24;border-color:#8b4751;color:#ffd0cd}
+    .metric{padding:11px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+    .metric span{color:var(--muted);font-size:12px}.metric strong{font-size:19px;font-variant-numeric:tabular-nums}
+    #method{font-size:13px;color:var(--cyan)}details{margin-top:16px;font-size:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font:11px/1.5 monospace}
+    #notes{padding-left:17px;margin:12px 0;color:var(--muted);font-size:12px}#notes li+li{margin-top:10px}
+    .explain{font-size:12px;color:var(--muted)}.explain strong{color:var(--text)}
+    .progress{height:8px;background:#0c1422;border:1px solid #294159;border-radius:6px;overflow:hidden;margin-top:8px}
+    .progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .15s}
+    #progressText{font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+    footer{max-width:1536px;margin:0 auto;padding:0 22px 24px;color:#788da7;font-size:11px}
+    @media(max-width:1100px){main{grid-template-columns:210px minmax(320px,1fr)}aside.results{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:24px}aside.results .section+.section{margin:0;padding:0;border:0}}
+    @media(max-width:660px){header{padding:16px}.badge{display:none}main{display:flex;flex-direction:column;padding:12px}.controls{order:1}.workspace{order:0}.results{order:2}aside.results{display:block}aside.results .section+.section{margin-top:20px}.grid{grid-template-columns:repeat(3,1fr)}}
+  </style>
+</head>
+<body>
+<header>
+  <div><h1>Medial axis <span>Lab</span></h1><p>Centres of maximal inscribed disks. Always exists, computed directly.</p></div>
+  <a class="badge" href="/compare" style="text-decoration:none">SWARM SWEEP COMPARISON &rarr;</a>
+</header>
+<main>
+  <aside class="panel controls">
+    <div class="section">
+      <h2>01 / Shape generator</h2>
+      <div class="grid" id="presets">
+        <button data-shape="circle">Circle</button><button data-shape="ellipse">Ellipse</button>
+        <button data-shape="star">Star</button><button data-shape="flower">Flower</button>
+        <button data-shape="crescent">C-bend</button><button data-shape="neck">Narrow neck</button>
+      </div>
+      <label class="row" for="lobes">Arms / lobes <output id="lobesValue">5</output></label>
+      <input id="lobes" type="range" min="3" max="12" step="1" value="5">
+      <label class="row" for="depth">Indentation <output id="depthValue">0.55</output></label>
+      <input id="depth" type="range" min="0.15" max="0.8" step="0.01" value="0.55">
+      <label for="seed">Random seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="42">
+      <label for="randomFamily">Random shape family</label>
+      <select id="randomFamily"><option value="ribbon">Curved ribbon</option><option value="blob">Random blob</option></select>
+      <button id="random" class="primary full">Generate random shape</button>
+      <button id="sameSeed" class="full">Rebuild this seed</button>
+      <p class="hint">Every shape is treated as the polygon through its vertices.</p>
+    </div>
+    <div class="section">
+      <h2>02 / Boundary editor</h2>
+      <div class="grid"><button id="editMode" class="active">Edit vertices</button><button id="drawMode">Draw outline</button></div>
+      <p class="hint" id="editHint">Drag vertices to reshape. Double-click an edge to insert a vertex. Right-click a vertex to remove it.</p>
+      <button id="undo" class="full">Undo boundary change</button>
+    </div>
+    <div class="section">
+      <h2>03 / Medial axis</h2>
+      <label class="row" for="prune">Branch pruning <output id="pruneValue">0.05</output></label>
+      <input id="prune" type="range" min="0" max="0.4" step="0.01" value="0.05">
+      <p class="hint">Drops medial branches whose generating boundary arc is shorter than this fraction of the perimeter. Higher = cleaner trunk.</p>
+      <label class="row"><span>Extend trunk to boundary</span><input id="extend" type="checkbox" checked></label>
+      <label class="row"><span>Show pruned medial tree</span><input id="showBranches" type="checkbox" checked></label>
+      <label class="row"><span>Show inscribed disks</span><input id="showDisks" type="checkbox"></label>
+      <label for="resolution">Distance-field display resolution</label>
+      <select id="resolution"><option value="180">180 - quick</option><option value="240" selected>240 - balanced</option><option value="320">320 - finer features</option></select>
+      <button id="solve" class="primary full">Compute medial axis</button>
+    </div>
+  </aside>
+  <section class="workspace">
+    <div class="canvas-wrap">
+      <div class="canvas-label">BOUNDARY / INTERIOR / TRAJECTORY</div>
+      <canvas id="scene" width="900" height="900" aria-label="Interactive boundary editor and central trajectory"></canvas>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:#60dfdd"></i>Boundary</span>
+      <span><i class="dot" style="background:#5f7aa8"></i>Medial tree</span>
+      <span><i class="dot" style="background:#738fbb"></i>Perpendicular chords</span>
+      <span><i class="dot" style="background:#ffd08a"></i>Medial trunk</span>
+      <span><i class="dot" style="background:#ff977d"></i>Concave turn</span>
+    </div>
+    <div id="status" role="status" aria-live="polite">Preparing geometry...</div>
+    <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+    <div id="progressText">Idle</div>
+  </section>
+  <aside class="panel results">
+    <div class="section">
+      <h2>Trajectory measures</h2>
+      <div class="metric"><span>Path length</span><strong id="length">--</strong></div>
+      <div class="metric"><span>Construction</span><strong id="method">--</strong></div>
+      <div class="metric"><span>Medial tree edges</span><strong id="branches">--</strong></div>
+      <div class="metric"><span>Max inscribed radius</span><strong id="maxRadius">--</strong></div>
+      <div class="metric"><span>Moving disk radius</span><strong id="currentRadius">--</strong></div>
+      <div class="metric"><span>Moving chord offset</span><strong id="currentError">--</strong></div>
+      <div class="metric"><span>Mean chord offset</span><strong id="meanError">--</strong></div>
+      <div class="metric"><span>Concave vertices</span><strong id="concave">--</strong></div>
+      <div class="metric"><span>Boundary samples</span><strong id="checks">--</strong></div>
+      <div class="metric"><span>Compute time</span><strong id="elapsed">--</strong></div>
+      <label class="row"><span>Interior distance field</span><input id="showHeat" type="checkbox" checked></label>
+      <label class="row"><span>Perpendicular chord samples</span><input id="showChords" type="checkbox" checked></label>
+      <label class="row"><span>Negative turning / curvature</span><input id="showCurvature" type="checkbox" checked></label>
+      <label class="row"><span>Editable vertices</span><input id="showVertices" type="checkbox" checked></label>
+      <label class="row"><span>Animate trajectory</span><input id="animate" type="checkbox" checked></label>
+      <label class="row" for="speed">Marker speed <output id="speedValue">80</output></label>
+      <input id="speed" type="range" min="20" max="220" step="10" value="80">
+      <button id="export" class="full" disabled>Export shape + trajectory JSON</button>
+    </div>
+    <div class="section">
+      <h2>How to read this</h2>
+      <p class="explain"><strong>Medial axis.</strong> The set of centres of disks that touch the boundary in two or more places. It always exists for a closed region.</p>
+      <p class="explain"><strong>Construction.</strong> Voronoi diagram of a dense boundary sampling; interior Voronoi edges approximate the axis. Short-arc branches are pruned.</p>
+      <p class="explain"><strong>Trunk.</strong> The longest path through the pruned tree, smoothed by a cubic spline and optionally extended to the boundary.</p>
+      <p class="explain"><strong>Chord offset.</strong> Distance from the trunk to its perpendicular chord's midpoint. Shown as a diagnostic: it is zero where the two walls are locally parallel.</p>
+      <ul id="notes"></ul>
+          </div>
+  </aside>
+</main>
+<footer>Simple closed regions only. The medial axis is approximated from a boundary sampling at about 1 canvas unit spacing.</footer>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const canvas = $("scene"), ctx = canvas.getContext("2d");
+let points = [], result = null, mode = "edit", selectedShape = "ellipse";
+let boundaryModel = null;
+let dragging = -1, stroke = null, history = [], revision = 0, timer = null;
+let running = false, queued = false, heatCanvas = null, pathLengths = [], travel = 0, lastTime = 0;
+const distance = (a,b) => Math.hypot(a[0]-b[0],a[1]-b[1]);
+const clone = value => value.map(p => [...p]);
+const clamp = n => Math.max(8, Math.min(592,n));
+
+function status(text, error=false) {
+  $("status").textContent = text;
+  $("status").classList.toggle("error",error);
+}
+function saveUndo() {
+  history.push({points:clone(points),shape:selectedShape,model:boundaryModel?{...boundaryModel}:null,
+    depth:$("depth").value,lobes:$("lobes").value,seed:$("seed").value,family:$("randomFamily").value});
+  if(history.length>30) history.shift();
+}
+function clearResult() {
+  result=null; heatCanvas=null; pathLengths=[]; travel=0; $("export").disabled=true;
+  for(const id of ["length","method","branches","maxRadius","currentRadius","currentError","meanError","concave","checks","elapsed"]) $(id).textContent="--";
+  $("notes").replaceChildren();
+}
+function setProgress(fraction,message) {
+  $("progressBar").style.width=(100*Math.max(0,Math.min(1,fraction))).toFixed(1)+"%";
+  $("progressText").textContent=`${Math.round(100*fraction)}% - ${message}`;
+}
+function changed(delay=180) {
+  revision++; clearResult(); clearTimeout(timer);
+  status("Boundary updated. Computing the central route...");
+  timer=setTimeout(compute,delay);
+}
+function rng(seed) {
+  let a=seed>>>0;
+  return () => {
+    a=(a+0x6D2B79F5)>>>0;
+    let t=Math.imul(a^(a>>>15),1|a);
+    t^=t+Math.imul(t^(t>>>7),61|t);
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+function makeShape(name) {
+  const n=+$("lobes").value, depth=+$("depth").value, out=[];
+  if(name==="random" && $("randomFamily").value==="ribbon") {
+    const random=rng(Number($("seed").value));
+    const amplitude=(random()-.5)*100, wobble=(random()-.5)*14;
+    const lower=[];
+    for(let i=0;i<120;i++) {
+      const t=i/119, x=100+400*t, y=300+amplitude*Math.sin(Math.PI*t)+wobble*Math.sin(2*Math.PI*t);
+      const slope=(amplitude*Math.PI*Math.cos(Math.PI*t)+2*Math.PI*wobble*Math.cos(2*Math.PI*t))/400;
+      const width=35+10*depth*Math.sin(Math.PI*t), norm=Math.hypot(1,slope);
+      out.push([x-width*slope/norm,y+width/norm]);
+      lower.push([x+width*slope/norm,y-width/norm]);
+    }
+    return out.concat(lower.reverse());
+  } else if(name==="star") {
+    for(let i=0;i<2*n;i++) {
+      const t=-Math.PI/2+i*Math.PI/n, r=i%2 ? 220*(1-depth) : 220;
+      out.push([300+r*Math.cos(t),300+r*Math.sin(t)]);
+    }
+  } else if(name==="crescent") {
+    const inner=80+90*(1-depth);
+    for(let i=0;i<=64;i++) {
+      const t=Math.PI*.23+i/64*Math.PI*1.54;
+      out.push([300+220*Math.cos(t),300+220*Math.sin(t)]);
+    }
+    for(let i=64;i>=0;i--) {
+      const t=Math.PI*.23+i/64*Math.PI*1.54;
+      out.push([300+inner*Math.cos(t),300+inner*Math.sin(t)]);
+    }
+  } else if(name==="neck") {
+    const h=18+65*(1-depth);
+    out.push([80,155],[220,155],[220,300-h],[380,300-h],[380,155],[520,155],
+      [520,445],[380,445],[380,300+h],[220,300+h],[220,445],[80,445]);
+  } else {
+    const random=rng(Number($("seed").value));
+    const phases=Array.from({length:7},()=>random()*2*Math.PI);
+    const amps=Array.from({length:7},(_,i)=>(random()*.6+.4)/Math.pow(i+2,1.3));
+    for(let i=0;i<160;i++) {
+      const t=i/160*2*Math.PI;
+      let r=205;
+      if(name==="flower") r=170*(1+depth*.42*Math.cos(n*t));
+      if(name==="random") {
+        r=160;
+        for(let k=0;k<7;k++) r+=95*depth*amps[k]*Math.cos((k+2)*t+phases[k]);
+      }
+      out.push([300+r*Math.cos(t)*(name==="ellipse"?1.12:1),
+                300+r*Math.sin(t)*(name==="ellipse"?.63:1)]);
+    }
+  }
+  return out;
+}
+function setShape(name,remember=true) {
+  if(remember) saveUndo();
+  selectedShape=name; points=makeShape(name);
+  boundaryModel=["circle","ellipse","star","flower","crescent","neck"].includes(name)
+    ?{kind:name,depth:+$("depth").value,arms:+$("lobes").value}:null;
+  updatePresetButtons(); changed(0);
+}
+function updatePresetButtons() {
+  document.querySelectorAll("[data-shape]").forEach(b=>b.classList.toggle("active",b.dataset.shape===selectedShape));
+}
+async function compute() {
+  if(dragging>=0 || stroke)return;
+  if(running) { queued=true; return; }
+  if(points.length<3) return;
+  running=true; queued=false;
+  const thisRevision=revision;
+  const request={points:clone(points),resolution:+$("resolution").value,prune:+$("prune").value,extend:$("extend").checked};
+  status("Computing the medial axis transform...");
+  setProgress(0,"Sending boundary");
+  try {
+    const response=await fetch("/api/analyze",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(request)
+    });
+    if(!response.ok) {
+      const data=await response.json().catch(()=>({}));
+      throw new Error(data.error || `Server returned HTTP ${response.status}.`);
+    }
+    const reader=response.body.getReader(),decoder=new TextDecoder();
+    let buffer="",data=null;
+    while(true) {
+      const {value,done}=await reader.read();
+      if(value) buffer+=decoder.decode(value,{stream:true});
+      let newline;
+      while((newline=buffer.indexOf("\n"))>=0) {
+        const event=JSON.parse(buffer.slice(0,newline)); buffer=buffer.slice(newline+1);
+        if(thisRevision!==revision) { reader.cancel(); return; }
+        if(event.type==="progress") setProgress(event.fraction,event.message);
+        else if(event.type==="error") throw new Error(event.error);
+        else if(event.type==="result") data=event.data;
+      }
+      if(done) break;
+    }
+    if(thisRevision!==revision) return;
+    if(!data) throw new Error("The server closed the stream without a result.");
+    result=data;
+    result.settings={resolution:request.resolution,prune:request.prune,extend:request.extend,seed:$("seed").value};
+    prepareHeat(data.heat);
+    pathLengths=[0];
+    for(let i=1;i<data.path.length;i++) pathLengths.push(pathLengths[i-1]+distance(data.path[i-1],data.path[i]));
+    $("length").textContent=data.stats.length.toFixed(1);
+    $("method").textContent="MEDIAL AXIS";
+    $("branches").textContent=data.stats.branches;
+    $("maxRadius").textContent=data.stats.maxRadius.toFixed(1);
+    $("meanError").textContent=data.stats.meanChordError.toFixed(2);
+    $("concave").textContent=data.stats.concaveVertices;
+    $("checks").textContent=data.stats.samples;
+    $("elapsed").textContent=data.stats.elapsedMs+" ms";
+    $("notes").replaceChildren(...data.warnings.map(note=>{
+      const li=document.createElement("li"); li.textContent=note; return li;
+    }));
+    $("export").disabled=false;
+    setProgress(1,`Done in ${data.stats.elapsedMs} ms`);
+    status("Medial axis computed. The gold curve is the smoothed longest medial path.");
+  } catch(error) {
+    if(thisRevision===revision) {
+      clearResult();
+      setProgress(0,"Failed");
+      status(error instanceof Error ? error.message : "The request failed.",true);
+    }
+  } finally {
+    running=false;
+    if(queued || thisRevision!==revision) { queued=false; clearTimeout(timer); timer=setTimeout(compute,0); }
+  }
+}
+function prepareHeat(heat) {
+  heatCanvas=document.createElement("canvas"); heatCanvas.width=heat.width; heatCanvas.height=heat.height;
+  const hctx=heatCanvas.getContext("2d"), image=hctx.createImageData(heat.width,heat.height);
+  const max=Math.max(...heat.values,1);
+  heat.values.forEach((v,i)=>{
+    const t=v/max, j=i*4;
+    image.data[j]=22+25*t; image.data[j+1]=50+110*t; image.data[j+2]=80+85*t; image.data[j+3]=v>0?210:0;
+  });
+  hctx.putImageData(image,0,0);
+}
+function line(list,color,width,closed=false) {
+  if(!list.length)return;
+  ctx.beginPath();ctx.moveTo(...list[0]);
+  for(let i=1;i<list.length;i++)ctx.lineTo(...list[i]);
+  if(closed)ctx.closePath();
+  ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+}
+function dot(p,r,color) {
+  ctx.beginPath();ctx.arc(p[0],p[1],r,0,2*Math.PI);ctx.fillStyle=color;ctx.fill();
+}
+function boundaryPath() {
+  const list=result?result.boundary:points;
+  ctx.beginPath();ctx.moveTo(...list[0]);list.slice(1).forEach(p=>ctx.lineTo(...p));
+  ctx.closePath();
+}
+function samplePath(t) {
+  const f=t*(result.path.length-1),i=Math.min(Math.floor(f),result.path.length-2),u=f-i;
+  const a=result.path[i],b=result.path[i+1];
+  return {point:[a[0]+u*(b[0]-a[0]),a[1]+u*(b[1]-a[1])],velocity:[b[0]-a[0],b[1]-a[1]],
+          radius:result.radius[i]+u*(result.radius[i+1]-result.radius[i])};
+}
+function movingChord(point,velocity) {
+  const speed=Math.hypot(...velocity);if(speed<1e-12)return null;
+  const n=[-velocity[1]/speed,velocity[0]/speed];
+  let minus=-Infinity,plus=Infinity;
+  const boundary=result.boundary;
+  for(let i=0;i<boundary.length;i++) {
+    const a=boundary[i],b=boundary[(i+1)%boundary.length],e=[b[0]-a[0],b[1]-a[1]],r=[a[0]-point[0],a[1]-point[1]];
+    const den=n[0]*e[1]-n[1]*e[0];if(Math.abs(den)<1e-10)continue;
+    const t=(r[0]*e[1]-r[1]*e[0])/den,u=(r[0]*n[1]-r[1]*n[0])/den;
+    if(u < -1e-9 || u>1+1e-9)continue;
+    if(t>1e-8)plus=Math.min(plus,t);
+    if(t<-1e-8)minus=Math.max(minus,t);
+  }
+  if(!Number.isFinite(minus)||!Number.isFinite(plus))return null;
+  return {a:[point[0]+minus*n[0],point[1]+minus*n[1]],b:[point[0]+plus*n[0],point[1]+plus*n[1]],error:Math.abs(minus+plus)/2};
+}
+function frame(time) {
+  const dt=lastTime?Math.min((time-lastTime)/1000,.1):0; lastTime=time;
+  ctx.setTransform(canvas.width/600,0,0,canvas.height/600,0,0);
+  ctx.clearRect(0,0,600,600);
+  ctx.lineWidth=.5;ctx.strokeStyle="#18273a";
+  for(let n=25;n<600;n+=25) {
+    ctx.beginPath();ctx.moveTo(n,0);ctx.lineTo(n,600);ctx.moveTo(0,n);ctx.lineTo(600,n);ctx.stroke();
+  }
+  if(points.length>2) {
+    boundaryPath();
+    ctx.fillStyle="#152b3b";ctx.fill();
+    if(result && heatCanvas && $("showHeat").checked) {
+      ctx.save();ctx.clip();ctx.imageSmoothingEnabled=true;ctx.drawImage(heatCanvas,0,0,600,600);ctx.restore();
+    }
+    boundaryPath();ctx.strokeStyle="#60dfdd";ctx.lineWidth=1.7;ctx.stroke();
+  }
+  if(result) {
+    if($("showBranches").checked && result.branches.length) {
+      ctx.beginPath();
+      result.branches.forEach(([a,b])=>{ctx.moveTo(...a);ctx.lineTo(...b);});
+      ctx.strokeStyle="#5f7aa8";ctx.lineWidth=1;ctx.stroke();
+    }
+    if($("showDisks").checked) {
+      ctx.beginPath();
+      for(let i=0;i<result.path.length;i+=40) {
+        const p=result.path[i],r=result.radius[i];ctx.moveTo(p[0]+r,p[1]);ctx.arc(p[0],p[1],r,0,2*Math.PI);
+      }
+      ctx.strokeStyle="#ffd08a40";ctx.lineWidth=.8;ctx.stroke();
+    }
+    if($("showChords").checked) {
+      ctx.beginPath();
+      result.chords.forEach((chord,i)=>{if(i%3===0){ctx.moveTo(...chord.a);ctx.lineTo(...chord.b);}});
+      ctx.strokeStyle="#738fbb70";ctx.lineWidth=.8;ctx.stroke();
+    }
+    if($("showCurvature").checked) {
+      result.boundary.forEach((p,i)=>{if(result.curvature[i]<-1e-6)dot(p,3.1,"#ff977d");});
+    }
+    line(result.path,"#ffd08a",3);
+    const first=result.path[0],last=result.path.at(-1);
+    dot(first,6,"#0c1422");dot(last,6,"#0c1422");dot(first,3.5,"#ffd08a");dot(last,3.5,"#ffd08a");
+    ctx.font="bold 11px system-ui";ctx.fillStyle="#ffe4b9";ctx.fillText("A",first[0]+9,first[1]-9);ctx.fillText("B",last[0]+9,last[1]-9);
+    const total=pathLengths.at(-1);
+    if(total>0) {
+      if($("animate").checked)travel=(travel+dt*(+$("speed").value))%(2*total);
+      const along=travel<=total?travel:2*total-travel;
+      let i=1;while(i<pathLengths.length-1 && pathLengths[i]<along)i++;
+      const u=(along-pathLengths[i-1])/(pathLengths[i]-pathLengths[i-1]);
+      const t=(i-1+u)/(result.path.length-1), sample=samplePath(t),p=sample.point;
+      const chord=movingChord(p,sample.velocity);
+      ctx.beginPath();ctx.arc(p[0],p[1],sample.radius,0,2*Math.PI);ctx.strokeStyle="#ffd08aa0";ctx.lineWidth=1;ctx.stroke();
+      $("currentRadius").textContent=sample.radius.toFixed(2);
+      if(chord) {
+        line([chord.a,chord.b],"#b8d1f4",1.4);
+        dot(chord.a,3,"#b8d1f4");dot(chord.b,3,"#b8d1f4");
+        dot([(chord.a[0]+chord.b[0])/2,(chord.a[1]+chord.b[1])/2],2.5,"#ff977d");
+        $("currentError").textContent=chord.error.toFixed(2);
+      } else $("currentError").textContent="endpoint";
+      dot(p,8,"#ffffff25");dot(p,4,"#fff9e9");
+    }
+  }
+  if(mode==="edit" && $("showVertices").checked)points.forEach((p,i)=>dot(p,i===dragging?5:2.4,i===dragging?"#ffffff":"#83b8be"));
+  if(stroke)line(stroke,"#fff9e9",2);
+  requestAnimationFrame(frame);
+}
+function locationOf(event) {
+  const rect=canvas.getBoundingClientRect();
+  return [clamp((event.clientX-rect.left)*600/rect.width),clamp((event.clientY-rect.top)*600/rect.height)];
+}
+function closestVertex(p) {
+  let index=-1,best=12;
+  points.forEach((q,i)=>{const d=distance(p,q);if(d<best){best=d;index=i;}});
+  return index;
+}
+function setMode(value) {
+  mode=value; $("editMode").classList.toggle("active",value==="edit");$("drawMode").classList.toggle("active",value==="draw");
+  $("editHint").textContent=value==="edit"
+    ?"Drag vertices to reshape. Double-click an edge to insert a vertex. Right-click a vertex to remove it."
+    :"Press and drag to draw a simple outline. Release to close it automatically. Avoid crossing the stroke.";
+}
+canvas.addEventListener("pointerdown",event=>{
+  if(event.button!==0)return;
+  const p=locationOf(event);
+  if(mode==="draw") {stroke=[p];canvas.setPointerCapture(event.pointerId);}
+  else {
+    dragging=closestVertex(p);
+    if(dragging>=0) {
+      saveUndo();boundaryModel=null;revision++;clearResult();clearTimeout(timer);
+      canvas.setPointerCapture(event.pointerId);status("Editing boundary...");
+    }
+  }
+});
+canvas.addEventListener("pointermove",event=>{
+  const p=locationOf(event);
+  if(stroke) {if(distance(p,stroke.at(-1))>6)stroke.push(p);}
+  else if(dragging>=0)points[dragging]=p;
+});
+function finishPointer(event) {
+  if(stroke) {
+    const drawn=stroke;stroke=null;
+    if(drawn.length>3 && distance(drawn[0],drawn.at(-1))<6)drawn.pop();
+    if(drawn.length<3 || drawn.length>384)status("Draw an outline with 3 to 384 sampled vertices.",true);
+    else {saveUndo();points=drawn;boundaryModel=null;selectedShape="custom";updatePresetButtons();changed(0);setMode("edit");}
+  } else if(dragging>=0) {
+    dragging=-1;selectedShape="custom";updatePresetButtons();changed(0);
+  }
+  if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);
+}
+canvas.addEventListener("pointerup",finishPointer);
+canvas.addEventListener("pointercancel",finishPointer);
+canvas.addEventListener("dblclick",event=>{
+  if(mode!=="edit")return;
+  if(points.length>=384){status("The boundary already has the maximum 384 vertices.",true);return;}
+  const p=locationOf(event);let edge=-1,best=14,projection=null;
+  points.forEach((a,i)=>{
+    const b=points[(i+1)%points.length],dx=b[0]-a[0],dy=b[1]-a[1];
+    const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy)));
+    const q=[a[0]+t*dx,a[1]+t*dy],d=distance(p,q);
+    if(d<best && distance(q,a)>.2 && distance(q,b)>.2){best=d;edge=i;projection=q;}
+  });
+  if(edge>=0){saveUndo();points.splice(edge+1,0,projection);boundaryModel=null;selectedShape="custom";updatePresetButtons();changed(0);}
+});
+canvas.addEventListener("contextmenu",event=>{
+  event.preventDefault();if(mode!=="edit")return;
+  const i=closestVertex(locationOf(event));
+  if(i>=0 && points.length>3){saveUndo();points.splice(i,1);boundaryModel=null;selectedShape="custom";updatePresetButtons();changed(0);}
+});
+document.querySelectorAll("[data-shape]").forEach(b=>b.addEventListener("click",()=>setShape(b.dataset.shape)));
+$("editMode").onclick=()=>setMode("edit");$("drawMode").onclick=()=>setMode("draw");
+$("undo").onclick=()=>{if(history.length){
+  const item=history.pop();points=item.points;selectedShape=item.shape;boundaryModel=item.model;
+  $("depth").value=item.depth;$("depthValue").textContent=item.depth;
+  $("lobes").value=item.lobes;$("lobesValue").textContent=item.lobes;
+  $("seed").value=item.seed;$("randomFamily").value=item.family;
+  updatePresetButtons();changed(0);
+}};
+$("random").onclick=()=>{$("seed").value=crypto.getRandomValues(new Uint32Array(1))[0];setShape("random");};
+$("sameSeed").onclick=()=>{
+  const seed=Number($("seed").value);
+  if(!Number.isInteger(seed)||seed<0||seed>4294967295){status("Seed must be an integer from 0 to 4294967295.",true);return;}
+  setShape("random");
+};
+for(const id of ["lobes","depth","speed"]) {
+  $(id).addEventListener("input",()=>{
+    $(id+"Value").textContent=$(id).value;
+    if(id!=="speed" && ["star","flower","crescent","neck","random"].includes(selectedShape))setShape(selectedShape);
+  });
+}
+$("resolution").onchange=()=>changed(0);
+$("prune").addEventListener("input",()=>{$("pruneValue").textContent=(+$("prune").value).toFixed(2);});
+$("prune").addEventListener("change",()=>changed(0));
+$("extend").onchange=()=>changed(0);
+$("solve").onclick=()=>changed(0);
+$("export").onclick=()=>{
+  if(!result)return;
+  const payload={format:"medial-axis-lab-v1",units:"canvas units; domain 600 by 600",...result};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
+  const link=document.createElement("a");link.href=url;link.download="medial-axis.json";link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+setShape("ellipse",false);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

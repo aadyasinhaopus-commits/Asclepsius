@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swarm Sweep Comparison</title>
+<style>
+:root{color-scheme:dark;--bg:#090e18;--panel:#111927;--line:#263448;--muted:#9aacc3;--text:#eaf0fb;--cyan:#60dfdd;--gold:#ffd08a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif}
+header{padding:16px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px}
+h1{margin:0;font-size:22px}h1 span{color:var(--cyan)}header a{color:var(--cyan)}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 24px;border-bottom:1px solid var(--line)}
+button,select,input{font:inherit;color:var(--text)}button,select,input[type=number]{background:#172335;border:1px solid #34445e;border-radius:7px;padding:6px 10px}
+button.primary{background:var(--cyan);color:#08252b;font-weight:700;border-color:var(--cyan)}button:disabled{opacity:.5}
+input[type=range]{accent-color:var(--cyan)}label{font-size:12px;color:var(--muted)}
+.progress{height:8px;background:#0c1422;border:1px solid #294159;border-radius:6px;overflow:hidden;width:260px}
+.progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .15s}
+#progressText{font-size:12px;color:var(--muted);min-width:320px}#progressText.error{color:#ffb4ad}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.card h2{margin:0 0 6px;font-size:13px}.card h2 small{color:var(--muted);font-weight:400}
+canvas{width:100%;aspect-ratio:1;display:block;background:#0c1422;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}td{padding:2px 0;border-bottom:1px solid #1c2738}td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+td.best{color:var(--gold);font-weight:700}
+.shape{display:grid;grid-template-columns:200px 1fr;gap:18px;margin:16px 24px 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.score{text-align:center}.score strong{display:block;font-size:44px;line-height:1.1;font-variant-numeric:tabular-nums}.score span{font-size:12px;color:var(--muted)}
+.meter{height:8px;border-radius:5px;background:linear-gradient(90deg,#60dfdd,#ffd08a,#ff7d7d);position:relative;margin-top:8px}
+.meter i{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 18px;font-size:12px}
+.facts div{display:flex;justify-content:space-between;border-bottom:1px solid #1c2738;padding:2px 0}.facts span{color:var(--muted)}
+.terms{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.terms div{flex:1;min-width:130px}.terms b{display:block;height:5px;background:var(--cyan);border-radius:3px;margin-top:3px}
+.notes{padding:0 24px 24px;color:var(--muted);font-size:12px;max-width:1400px}.notes b{color:var(--text)}
+@media(max-width:1200px){.grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>Swarm sweep <span>comparison</span></h1><a href="/">Medial axis lab</a></header>
+<div class="bar">
+  <select id="shape">
+    <option value="blob">Random blob</option><option value="star">Star</option><option value="flower">Flower</option>
+    <option value="crescent">C-bend</option><option value="neck">Narrow neck</option><option value="ellipse">Ellipse</option>
+  </select>
+  <label>Seed <input id="seed" type="number" value="7" style="width:110px"></label>
+  <button id="newSeed">New random</button>
+  <label>Drones <input id="drones" type="number" min="2" max="64" value="12" style="width:70px"></label>
+  <label>Camera HFOV&deg; <input id="hfov" type="number" min="10" max="150" value="70" style="width:64px"></label>
+  <label>VFOV&deg; <input id="vfov" type="number" min="10" max="150" value="55" style="width:64px"></label>
+  <label>Overlap % <input id="overlap" type="number" min="0" max="100" value="10" style="width:60px"></label>
+  <button id="run" class="primary">Compare</button>
+  <div class="progress"><div id="progressBar"></div></div><span id="progressText">Idle</span>
+</div>
+<div class="bar">
+  <button id="play">Pause</button>
+  <label>Mission time</label><input id="time" type="range" min="0" max="89" value="0" style="flex:1">
+  <label>View <select id="view"><option value="lanes">Drone areas</option><option value="coverage">Swept so far</option><option value="imaged">Nadir images so far</option><option value="overlapMap">Final image overlap</option><option value="none">None</option></select></label>
+  <label><input id="showPaths" type="checkbox" checked> Drone paths</label>
+  <label><input id="showFront" type="checkbox" checked> Front</label>
+  <label><input id="showFootprints" type="checkbox" checked> Camera footprints</label>
+</div>
+<div class="shape" id="shapePanel" hidden>
+  <div class="score"><span>Shape complexity</span><strong id="score">--</strong><span id="scoreLabel"></span><div class="meter"><i id="needle"></i></div></div>
+  <div class="facts" id="facts"></div>
+  <div class="terms" id="terms"></div>
+</div>
+<div class="grid" id="grid"></div>
+<div class="notes">
+  <p><b>Model.</b> Every planner defines an arrival time over the field; the formation at time t is the front where arrival = t. Drones are spaced evenly along the front, so each drone's swath (altitude) is its share of front length. Several front pieces = the swarm has split.</p>
+  <p><b>Peak swath</b>: largest per-drone footprint needed (sets max altitude). <b>Mission</b>: path length of the fastest-moving drone. <b>Speed spread</b>: fastest/slowest drone on the front (1 = everyone flies at the same speed). <b>Chord folds</b>: fraction of MAT steps where consecutive perpendicular chords cross, meaning the rigid formation would sweep backwards. Gold = best in row. <b>Drone areas</b>: each colour is the region one drone is responsible for (its lane between neighbours on the front); the line of the same colour is that drone's flight path. <b>Area balance</b>: smallest / largest drone area. <b>Transit jumps</b>: times a drone must hop to a different piece of a split front.</p>
+  <p><b>Nadir camera.</b> Arrows show each drone's heading (direction of travel); the white rectangle is its downward camera footprint, 2&middot;h&middot;tan(HFOV/2) across track by 2&middot;h&middot;tan(VFOV/2) along track, rotated to the heading. Altitude h is the lowest that lets the footprint reach every cell of that drone's area, plus the overlap margin. The footprints are then stamped along every path; any field cell still unimaged raises the altitude of the drone that owns it, and this repeats until <b>Nadir coverage = 100%</b>. "Final image overlap" shows unimaged cells in red (there should be none) and how many drones image each cell. <b>Compute ms</b>: server time for that planner only.</p>
+  <p><b>Complexity score</b> (0 = disk, 100 = very complex) weights non-convexity 30%, boundary roughness 25%, elongation 15%, width variation along the medial trunk 15%, and necks (pinch points in inscribed radius) 15%.</p>
+</div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const ORDER=["mat","lawnmower","harmonic","geodesic"];
+const METRICS=[["coverage","Coverage %",1],["peakSwath","Peak swath",-1],["missionLength","Mission",-1],
+  ["maxSubSwarms","Max sub-swarms",-1],["speedSpread","Speed spread",-1],["folds","Chord folds %",-1],["areaBalance","Area balance",1],["longestDronePath","Longest drone path",-1],["transits","Transit jumps",-1],["cameraCoverage","Nadir coverage %",1],["gapCells","Unimaged cells",-1],["maxAltitude","Max altitude",-1],["meanAltitude","Mean altitude",-1],["meanOverlap","Mean image overlap",-1],["computeMs","Compute ms",-1]];
+const RAD=Math.PI/180;
+function footprint(ctx,x,y,heading,altitude,color,fill){
+  const tx=Math.tan(+data.camera.hfov*RAD/2),ty=Math.tan(+data.camera.vfov*RAD/2),a=altitude*ty,c=altitude*tx;
+  const h=[Math.cos(heading*RAD),Math.sin(heading*RAD)],n=[-h[1],h[0]];
+  ctx.beginPath();
+  for(const [sa,sc] of [[1,1],[1,-1],[-1,-1],[-1,1]])ctx.lineTo(x+sa*a*h[0]+sc*c*n[0],y+sa*a*h[1]+sc*c*n[1]);
+  ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}ctx.strokeStyle=color;ctx.lineWidth=1;ctx.stroke();
+}
+function arrow(ctx,x,y,heading,color){
+  const h=[Math.cos(heading*RAD),Math.sin(heading*RAD)],n=[-h[1],h[0]],L=11;
+  ctx.beginPath();ctx.moveTo(x+h[0]*L,y+h[1]*L);ctx.lineTo(x-h[0]*5+n[0]*5,y-h[1]*5+n[1]*5);
+  ctx.lineTo(x-h[0]*2,y-h[1]*2);ctx.lineTo(x-h[0]*5-n[0]*5,y-h[1]*5-n[1]*5);ctx.closePath();
+  ctx.fillStyle=color;ctx.fill();ctx.strokeStyle="#0c1422";ctx.lineWidth=1.2;ctx.stroke();
+}
+const hue=(i,n)=>`hsl(${Math.round(360*i/n)},75%,60%)`;
+function hsl(i,n){const h=i/n*6,c=.75*(1-Math.abs(2*.6-1)),x=c*(1-Math.abs(h%2-1)),m=.6-c/2;
+  const [r,g,b]=h<1?[c,x,0]:h<2?[x,c,0]:h<3?[0,c,x]:h<4?[0,x,c]:h<5?[x,0,c]:[c,0,x];return [255*(r+m),255*(g+m),255*(b+m)];}
+const FACTS=[["area","Area"],["perimeter","Perimeter"],["circularity","Circularity (1 = disk)"],["solidity","Solidity (area/hull)"],
+  ["convexity","Convexity (hull/perim)"],["reflexVertices","Reflex vertices"],["bending","Total turning / 2pi"],["elongation","Elongation"],
+  ["maxInscribed","Max inscribed radius"],["widthRatio","Width ratio on trunk"],["necks","Necks"],["medialEdges","Medial tree edges"]];
+const TERMS={nonConvexity:"Non-convexity",boundaryRoughness:"Boundary roughness",elongation:"Elongation",widthVariation:"Width variation",necks:"Necks"};
+function showComplexity(c){
+  $("shapePanel").hidden=false;$("score").textContent=c.score;
+  $("scoreLabel").textContent=c.score<15?"Simple":c.score<35?"Moderate":c.score<60?"Complex":"Very complex";
+  $("needle").style.left=`calc(${Math.min(c.score,100)}% - 1px)`;
+  $("facts").replaceChildren(...FACTS.map(([k,label])=>{const d=document.createElement("div");d.innerHTML=`<span>${label}</span><strong>${c[k]}</strong>`;return d;}));
+  $("terms").replaceChildren(...Object.entries(TERMS).map(([k,label])=>{const d=document.createElement("div");
+    d.innerHTML=`${label} ${(100*c.terms[k]).toFixed(0)}%<b style="width:${100*c.terms[k]}%"></b>`;return d;}));
+}
+let data=null,frame=0,playing=true,last=0,images={};
+
+function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=Math.imul(a^(a>>>15),1|a);t^=t+Math.imul(t^(t>>>7),61|t);return((t^(t>>>14))>>>0)/4294967296;};}
+function makeShape(name,seed){
+  const out=[],depth=.55,n=5;
+  if(name==="star"){for(let i=0;i<2*n;i++){const t=-Math.PI/2+i*Math.PI/n,r=i%2?220*(1-depth):220;out.push([300+r*Math.cos(t),300+r*Math.sin(t)]);}return out;}
+  if(name==="crescent"){const inner=80+90*(1-depth);
+    for(let i=0;i<=64;i++){const t=Math.PI*.23+i/64*Math.PI*1.54;out.push([300+220*Math.cos(t),300+220*Math.sin(t)]);}
+    for(let i=64;i>=0;i--){const t=Math.PI*.23+i/64*Math.PI*1.54;out.push([300+inner*Math.cos(t),300+inner*Math.sin(t)]);}return out;}
+  if(name==="neck"){const h=18+65*(1-depth);return [[80,155],[220,155],[220,300-h],[380,300-h],[380,155],[520,155],[520,445],[380,445],[380,300+h],[220,300+h],[220,445],[80,445]];}
+  const random=rng(seed),phases=Array.from({length:7},()=>random()*2*Math.PI),amps=Array.from({length:7},(_,i)=>(random()*.6+.4)/Math.pow(i+2,1.3));
+  for(let i=0;i<160;i++){const t=i/160*2*Math.PI;let r=name==="flower"?170*(1+depth*.42*Math.cos(n*t)):205;
+    if(name==="blob"){r=160;for(let k=0;k<7;k++)r+=95*.8*amps[k]*Math.cos((k+2)*t+phases[k]);}
+    out.push([300+r*Math.cos(t)*(name==="ellipse"?1.12:1),300+r*Math.sin(t)*(name==="ellipse"?.63:1)]);}
+  return out;
+}
+function setProgress(f,msg,error=false){$("progressBar").style.width=(100*f).toFixed(1)+"%";$("progressText").textContent=`${Math.round(100*f)}% - ${msg}`;$("progressText").classList.toggle("error",error);}
+
+function buildCards(){
+  $("grid").replaceChildren(...ORDER.map(key=>{
+    const m=data.methods[key],card=document.createElement("div");card.className="card";
+    card.innerHTML=`<h2>${m.label}</h2><canvas width="600" height="600" id="c_${key}"></canvas><table id="t_${key}"></table>`;
+    return card;
+  }));
+  for(const [k,label,dir] of METRICS){
+    const values=ORDER.map(key=>data.methods[key].stats[k]);
+    const best=dir>0?Math.max(...values):Math.min(...values);
+    ORDER.forEach((key,i)=>{
+      const row=document.createElement("tr");
+      row.innerHTML=`<td>${label}</td><td class="${values[i]===best?"best":""}">${values[i]}</td>`;
+      $("t_"+key).appendChild(row);
+    });
+  }
+  images={};
+  for(const key of ORDER){
+    const c=data.methods[key].coverage,canvas=document.createElement("canvas");canvas.width=c.width;canvas.height=c.height;
+    images[key]={canvas,c,ctx:canvas.getContext("2d"),img:canvas.getContext("2d").createImageData(c.width,c.height)};
+    const l=data.methods[key].lanes,lc=document.createElement("canvas");lc.width=l.width;lc.height=l.height;
+    const lctx=lc.getContext("2d"),limg=lctx.createImageData(l.width,l.height),palette=Array.from({length:data.drones},(_,i)=>hsl(i,data.drones));
+    l.values.forEach((v,i)=>{const j=4*i;if(v>=0){const [r,g,b]=palette[v];limg.data[j]=r;limg.data[j+1]=g;limg.data[j+2]=b;limg.data[j+3]=120;}
+      else if(v===-1){limg.data[j]=200;limg.data[j+1]=60;limg.data[j+2]=60;limg.data[j+3]=170;}});
+    lctx.putImageData(limg,0,0);images[key].lanes=lc;
+    const o=data.methods[key].imaged,oc=document.createElement("canvas");oc.width=o.width;oc.height=o.height;
+    const octx=oc.getContext("2d"),oimg=octx.createImageData(o.width,o.height);
+    o.values.forEach((v,i)=>{const j=4*i;if(v===0){oimg.data[j]=255;oimg.data[j+1]=40;oimg.data[j+2]=40;oimg.data[j+3]=230;}
+      else if(v>0){const t=Math.min((v-1)/3,1);oimg.data[j]=40+200*t;oimg.data[j+1]=170-60*t;oimg.data[j+2]=120;oimg.data[j+3]=140;}});
+    octx.putImageData(oimg,0,0);images[key].overlap=oc;
+    // Pre-render cumulative nadir images by frame so scrubbing is instant.
+    images[key].imagedFrames=null;
+  }
+}
+function draw(){
+  if(!data)return;
+  const t=data.methods.mat.frames[frame].t;
+  for(const key of ORDER){
+    const canvas=$("c_"+key),ctx=canvas.getContext("2d"),m=data.methods[key],f=m.frames[frame];
+    ctx.clearRect(0,0,600,600);
+    ctx.beginPath();data.boundary.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();
+    ctx.fillStyle="#152b3b";ctx.fill();
+    if($("view").value==="overlapMap"){
+      ctx.save();ctx.clip();ctx.imageSmoothingEnabled=false;ctx.drawImage(images[key].overlap,0,0,600,600);ctx.restore();
+    } else if($("view").value==="imaged"){
+      ctx.save();ctx.clip();
+      m.drones.forEach((d,i)=>{const n=Math.min(d.path.length,Math.round((frame+1)*d.path.length/m.frames.length));
+        for(let k=0;k<n;k++)footprint(ctx,d.path[k][0],d.path[k][1],d.heading[k],d.altitude[k],"transparent",hue(i,data.drones).replace("60%)","60%,0.18)").replace("hsl","hsla"));});
+      ctx.restore();
+    } else if($("view").value==="lanes"){
+      ctx.save();ctx.clip();ctx.imageSmoothingEnabled=false;ctx.drawImage(images[key].lanes,0,0,600,600);ctx.restore();
+    } else if($("view").value==="coverage"){
+      const im=images[key],v=im.c.values,d=im.img.data;
+      for(let i=0;i<v.length;i++){const j=4*i,swept=v[i]>=0&&v[i]<=t,miss=v[i]===-1;
+        d[j]=miss?200:40;d[j+1]=miss?60:110;d[j+2]=miss?60:140;d[j+3]=swept||miss?150:0;}
+      im.ctx.putImageData(im.img,0,0);
+      ctx.save();ctx.clip();ctx.imageSmoothingEnabled=true;ctx.drawImage(im.canvas,0,0,600,600);ctx.restore();
+    }
+    ctx.beginPath();data.boundary.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();
+    ctx.strokeStyle="#60dfdd";ctx.lineWidth=2;ctx.stroke();
+    if(key==="mat"){ctx.beginPath();data.trunk.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.strokeStyle="#ffd08a60";ctx.lineWidth=1.5;ctx.stroke();}
+    if($("showPaths").checked) m.drones.forEach((d,i)=>{
+      ctx.beginPath();let prev=null;
+      d.path.forEach(p=>{if(prev&&Math.hypot(p[0]-prev[0],p[1]-prev[1])>25)ctx.moveTo(...p);else if(prev)ctx.lineTo(...p);else ctx.moveTo(...p);prev=p;});
+      ctx.strokeStyle=hue(i,data.drones);ctx.lineWidth=1.6;ctx.stroke();
+    });
+    if($("showFront").checked) for(const front of f.fronts){ctx.beginPath();front.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.strokeStyle="#ffd08a";ctx.lineWidth=2.5;ctx.stroke();}
+    f.drones.forEach(([x,y,s,heading,altitude],i)=>{
+      const color=f.drones.length===data.drones?hue(i,data.drones):"#ff7de9";
+      if(heading===undefined){ctx.beginPath();ctx.arc(x,y,4.5,0,2*Math.PI);ctx.fillStyle=color;ctx.fill();return;}
+      if($("showFootprints").checked)footprint(ctx,x,y,heading,altitude,"#ffffffb0",null);
+      arrow(ctx,x,y,heading,color);
+    });
+    for(const [p,c] of [[data.start,"#7dff9a"],[data.end,"#ff977d"]]){ctx.beginPath();ctx.arc(p[0],p[1],6,0,2*Math.PI);ctx.fillStyle=c;ctx.fill();}
+  }
+}
+function tick(now){
+  if(data&&playing&&now-last>90){frame=(frame+1)%data.methods.mat.frames.length;$("time").value=frame;last=now;draw();}
+  requestAnimationFrame(tick);
+}
+async function run(){
+  $("run").disabled=true;setProgress(0,"Sending field");
+  try{
+    const body={points:makeShape($("shape").value,+$("seed").value),drones:+$("drones").value,
+      hfov:+$("hfov").value,vfov:+$("vfov").value,overlap:+$("overlap").value/100};
+    const response=await fetch("/api/compare",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!response.ok){const e=await response.json().catch(()=>({}));throw new Error(e.error||`HTTP ${response.status}`);}
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer="",result=null;
+    while(true){
+      const {value,done}=await reader.read();if(value)buffer+=decoder.decode(value,{stream:true});
+      let n;while((n=buffer.indexOf("\n"))>=0){const e=JSON.parse(buffer.slice(0,n));buffer=buffer.slice(n+1);
+        if(e.type==="progress")setProgress(e.fraction,e.message);else if(e.type==="error")throw new Error(e.error);else result=e.data;}
+      if(done)break;
+    }
+    if(!result)throw new Error("No result received.");
+    data=result;frame=0;$("time").max=data.methods.mat.frames.length-1;showComplexity(data.complexity);buildCards();draw();
+    setProgress(1,`Done in ${data.elapsedMs} ms`);
+  }catch(e){setProgress(0,e.message,true);}
+  finally{$("run").disabled=false;}
+}
+$("run").onclick=run;
+$("newSeed").onclick=()=>{$("seed").value=crypto.getRandomValues(new Uint32Array(1))[0];$("shape").value="blob";run();};
+$("shape").onchange=run;
+$("play").onclick=()=>{playing=!playing;$("play").textContent=playing?"Pause":"Play";};
+$("time").oninput=()=>{frame=+$("time").value;playing=false;$("play").textContent="Play";draw();};
+for(const id of ["view","showPaths","showFront","showFootprints"])$(id).onchange=draw;
+run();requestAnimationFrame(tick);
+</script>
+</body>
+</html>
