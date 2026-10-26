@@ -1,0 +1,13 @@
+.idea/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# generated missions and personal field files
+swarm_lab/missions/
+swarm_lab/missions_test/
+swarm_lab/*.kml
+swarm_lab/*.kmz
+swarm_lab/*.poly
+swarm_lab/*.zip
